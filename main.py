@@ -29,18 +29,61 @@ BULLET = pygame.image.load(os.path.join("assets", "bullet.png"))
 ENBULLET = pygame.image.load(os.path.join("assets", "enemybullet.png"))
 EN2BULLET = pygame.image.load(os.path.join("assets", "enemy2bullet.png"))
 
+class Bullet:
+    def __init__(self, x, y, img):
+        self.x = x
+        self.y = y
+        self.img = img
+        self.mask = pygame.mask.from_surface(self.img)
+
+    def draw(self, window):
+        window.blit(self.img, (self.x + 15, self.y))
+    def move(self, vel):
+        self.y += vel
+
+    def off_screen(self, height):
+        return not(self.y <= height and self.y >= 0)
+
+    def collison(self, obj):
+        return collide(self, obj)
+
 
 class player: # define base class
+    COOLDOWN = 30
     def __init__(self, x, y, health=100):
         self.x = x
         self.y = y
         self.health = health
         self.player_img = None
         self.bullet_img = None
+        self.bullets = []
         self.cool_down_counter = 0
 
     def draw(self, window):
         window.blit(self.player_img, (self.x, self.y))
+        for bullet in self.bullets:
+            bullet.draw(window)
+    def move_bullets(self, vel, obj):
+        self.cooldown()
+        for bullet in self.bullets:
+            bullet.move(vel)
+            if bullet.off_screen(HEIGHT):
+                self.bullets.remove(bullet)
+            elif bullet.collison(obj):
+                obj.health -= 10
+                self.bullets.remove(bullet)
+
+
+    def cooldown(self):
+        if self.cool_down_counter >= self.COOLDOWN:
+            self.cool_down_counter = 0
+        elif self.cool_down_counter > 0:
+            self.cool_down_counter += 1
+    def shoot(self):
+        if self.cool_down_counter == 0:
+            bullet = Bullet(self.x, self.y, self.bullet_img)
+            self.bullets.append(bullet)
+            self.cool_down_counter = 1
     def get_width(self):
         return self.player_img.get_width()
 
@@ -54,7 +97,17 @@ class Player(player): # define player class
         self.bullet_img = BULLET
         self.mask = pygame.mask.from_surface(self.player_img)
         self.max_health = health
-
+    def move_bullets(self, vel, objs):
+       self.cooldown()
+       for bullet in self.bullets:
+           bullet.move(vel)
+           if bullet.off_screen(HEIGHT):
+               self.bullets.remove(bullet)
+           else:
+               for obj in objs:
+                   if bullet.collison(obj):
+                       objs.remove(obj)
+                       self.bullets.remove(bullet)
 class Enemy(player): # define enemy class
     SELECTOR_MAP = {
                     "one": (ENEMY, ENBULLET),
@@ -71,6 +124,14 @@ class Enemy(player): # define enemy class
         self.y += vel
 
 
+def collide(obj1, obj2):
+    offset_x = obj2.x - obj1.x
+    offset_y = obj2.y - obj1.y
+    return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) != None
+
+
+
+
 # main game loop
 def main():
     run = True
@@ -78,6 +139,7 @@ def main():
     level = 0
     lives = 5
     main_font = pygame.font.SysFont("chiller", 50)
+    lost_font = pygame.font.SysFont("chiller", 60)
 
     enemies = []
     wave_length = 5
@@ -85,12 +147,14 @@ def main():
 
 
     player_vel = 5
+    bullet_vel = 6
 
     player = Player(300, 500)
 
     clock = pygame.time.Clock()
 
     lost = False
+    lost_count = 0
 
     def redraw_window():
         WIN.blit(BG, (0,0))
@@ -108,6 +172,11 @@ def main():
 
         player.draw(WIN)
 
+        if lost:
+            lost_label = lost_font.render("YOU LOST LMAO :(", 1, (211, 47, 47))
+            WIN.blit(lost_label, (WIDTH/2 - lost_label.get_width()/2, 350))
+
+
 
 
         pygame.display.update()
@@ -115,9 +184,17 @@ def main():
 
     while run:
         clock.tick(FPS)
+        redraw_window()
 
         if lives <= 0 or player.health <= 0:
             lost = True
+            lost_count += 1
+
+        if lost:
+            if lost_count > FPS * 3:
+                run = False
+            else:
+                continue
 
         if len(enemies)== 0:
             level += 1
@@ -135,14 +212,19 @@ def main():
             player.x -= player_vel
         if keys[pygame.K_d] and player.x + player_vel + player.get_width() < WIDTH: # right
             player.x += player_vel
+        if keys[pygame.K_v]:
+            player.shoot()
 
         for enemy in enemies[:]:
             enemy.move(enemy_vel)
+            enemy.move_bullets(bullet_vel, player)
             if enemy.y + enemy.get_height() > HEIGHT:
                 lives -= 1
                 enemies.remove(enemy)
 
-        redraw_window()
+        player.move_bullets(-bullet_vel, enemies)
+
+
 
 
 main()
