@@ -108,21 +108,32 @@ class Player(player): # define player class
                    if bullet.collison(obj):
                        objs.remove(obj)
                        self.bullets.remove(bullet)
+    def draw(self, window):
+        super().draw(window)
+        self.healthbar(window)
+    def healthbar(self, window):
+        pygame.draw.rect(window, (255,0,0), (self.x, self.y + self.player_img.get_height() + 10, self.player_img.get_width(),10))
+        pygame.draw.rect(window, (0, 255, 0),(self.x, self.y + self.player_img.get_height() + 10, self.player_img.get_width() * (self.health/self.max_health), 10))
+
 class Enemy(player): # define enemy class
-    SELECTOR_MAP = {
-                    "one": (ENEMY, ENBULLET),
-                    "two": (ENEMY2, EN2BULLET)
-                    }
-    def __init__(self, x, y, health=100):
+    COLOR_MAP = {
+                "red": (ENEMY, ENBULLET),
+                "green": (ENEMY2, EN2BULLET)
+                }
+    def __init__(self, x, y, color, health=100):
         super().__init__(x, y, health)
-        self.player_img = ENEMY
-        self.bullet_img = ENBULLET
+        self.player_img, self.bullet_img = self.COLOR_MAP[color]
         self.mask = pygame.mask.from_surface(self.player_img)
 
 
     def move(self, vel):
         self.y += vel
 
+        def shoot(self):
+            if self.cool_down_counter == 0:
+                bullet = Bullet(self.x + 50, self.y + 50, self.bullet_img)
+                self.bullets.append(bullet)
+                self.cool_down_counter = 1
 
 def collide(obj1, obj2):
     offset_x = obj2.x - obj1.x
@@ -146,8 +157,8 @@ def main():
     enemy_vel = 1
 
 
-    player_vel = 5
-    bullet_vel = 6
+    player_vel = 6
+    bullet_vel = 8
 
     player = Player(300, 500)
 
@@ -200,7 +211,7 @@ def main():
             level += 1
             wave_length += 5
             for i in range(wave_length):
-                enemy = Enemy(random.randrange(50, WIDTH-100), random.randrange(-1500, -100), random.choice(["one", "two"]))
+                enemy = Enemy(random.randrange(50, WIDTH-100), random.randrange(-1500, -100), random.choice(["red", "green"]))
                 enemies.append(enemy)
 
 
@@ -212,15 +223,25 @@ def main():
             player.x -= player_vel
         if keys[pygame.K_d] and player.x + player_vel + player.get_width() < WIDTH: # right
             player.x += player_vel
-        if keys[pygame.K_v]:
+        if keys[pygame.K_SPACE]:
             player.shoot()
 
         for enemy in enemies[:]:
             enemy.move(enemy_vel)
             enemy.move_bullets(bullet_vel, player)
+
+            if random.randrange(0, 4*60) == 1:
+                enemy.shoot()
+
+            if collide(enemy, player):
+                player.health -= 10
+                enemies.remove(enemy)
+
             if enemy.y + enemy.get_height() > HEIGHT:
                 lives -= 1
                 enemies.remove(enemy)
+
+
 
         player.move_bullets(-bullet_vel, enemies)
 
